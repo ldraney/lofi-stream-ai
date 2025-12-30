@@ -42,23 +42,24 @@ Prove that AI can autonomously operate an engaging live stream:
 ```
 /lofi-stream-ai
 ├── CLAUDE.md              # This file
+├── .gitignore
 ├── server/                # Node.js stream server
-│   ├── index.js           # Main server (WebSocket, ffmpeg, queue)
-│   ├── ai-dj.js           # Claude API integration for chat interpretation
-│   ├── chat/              # Platform-specific chat adapters
-│   │   ├── twitch.js
-│   │   └── youtube.js
-│   └── stream/            # Streaming pipeline
-│       ├── receiver.js    # WebSocket video chunk receiver
-│       └── rtmp.js        # ffmpeg RTMP output
+│   ├── index.js           # Main server (WebSocket → ffmpeg → RTMP) ✓
+│   └── package.json
 ├── browser/               # Browser-side code
-│   ├── stream-client.js   # captureStream + MediaRecorder + WebSocket
-│   └── overlay.js         # On-screen queue/status display
-├── config/                # Stream configurations
-│   └── streams.json       # Platform keys, themes per stream
-└── scripts/               # Utility scripts
-    ├── analyze-song.sh    # Run librosa analysis on new songs
-    └── start-stream.sh    # Launch a stream instance
+│   ├── stream-client.js   # captureStream + MediaRecorder + WebSocket ✓
+│   └── test-stream.html   # Test page with simple visualization ✓
+├── scripts/
+│   └── start-test.sh      # Start both servers for testing
+├── audio -> ../audio-reactive-visuals/audio    # Symlink
+├── data -> ../audio-reactive-visuals/data      # Symlink
+└── visuals -> ../audio-reactive-visuals/visuals # Symlink
+
+# Planned (not yet built):
+# ├── server/ai-dj.js       # Claude API for chat interpretation
+# ├── server/chat/          # Platform chat adapters (twitch.js, youtube.js)
+# ├── browser/overlay.js    # On-screen queue/status display
+# └── config/streams.json   # Multi-stream configurations
 ```
 
 ## Key Technical Concepts
@@ -187,10 +188,16 @@ open http://localhost:8080/stream.html
 
 ## Development Priorities
 
-1. **Streaming pipeline** - captureStream → server → ffmpeg → RTMP (critical path)
+1. ~~**Streaming pipeline** - captureStream → server → ffmpeg → RTMP~~ ✅ DONE
 2. **Multi-song support** - Queue system, smooth transitions
 3. **AI DJ** - Claude interprets chat, makes decisions
 4. **Multi-stream** - Multiple isolated browser instances
+
+## Current Status
+
+**Working:** Browser captures canvas + audio → WebSocket → Server → ffmpeg → YouTube RTMP
+
+**Tested:** Successfully streaming at 30fps, ~1800 kbps to YouTube Live
 
 ## Notes
 
