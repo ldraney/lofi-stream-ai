@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 { margin-bottom: 20px; }
+    canvas {
+      border: 2px solid #333;
+      background: #000;
+    }
+    .controls {
+      margin: 20px 0;
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+    }
+    button:hover { background: #444; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status {
+      padding: 10px 20px;
+      background: #222;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    .status.streaming { background: #234; border: 1px solid #4a8; }
+    .status.error { background: #422; border: 1px solid #a44; }
+    select {
+      padding: 10px;
+      font-size: 16px;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Lofi Stream Test</h1>
+
+  <canvas id="canvas" width="1280" height="720"></canvas>
+
+  <div class="controls">
+    <select id="platform">
+      <option value="youtube">YouTube</option>
+      <option value="twitch">Twitch</option>
+    </select>
+    <button id="playBtn">Play Audio</button>
+    <button id="streamBtn" disabled>Start Stream</button>
+  </div>
+
+  <div class="status" id="status">Status: Ready</div>
+
+  <audio id="audio" src="../audio/neon-noir.mp3" preload="auto"></audio>
+
+  <script type="module">
+    import { StreamClient } from './stream-client.js';
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const audio = document.getElementById('audio');
+    const playBtn = document.getElementById('playBtn');
+    const streamBtn = document.getElementById('streamBtn');
+    const platformSelect = document.getElementById('platform');
+    const statusEl = document.getElementById('status');
+
+    let client = null;
+    let analysisData = null;
+    let animationId = null;
+
+    // Load analysis data
+    fetch('../data/neon-noir.json')
+      .then(r => r.json())
+      .then(data => {
+        analysisData = data;
+        console.log('Analysis loaded:', data.frames.length, 'frames');
+      });
+
+    // Simple visualization for testing
+    function getFrameAtTime(frames, time) {
+      const fps = frames.length / (frames[frames.length - 1].time - frames[0].time);
+      const idx = Math.floor(time * fps);
+      return frames[Math.min(idx, frames.length - 1)] || frames[0];
+    }
+
+    function render() {
+      const { width, height } = canvas;
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, width, height);
+
+      if (analysisData && !audio.paused) {
+        const frame = getFrameAtTime(analysisData.frames, audio.currentTime);
+
+        // Draw some reactive elements
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        // Circle based on RMS
+        const radius = 50 + frame.rms * 200;
+        const hue = frame.centroid * 360;
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${hue}, 70%, 50%, 0.8)`;
+        ctx.fill();
+
+        // Frequency bars
+        const barWidth = width / frame.bands.length;
+        frame.bands.forEach((band, i) => {
+          const barHeight = band * 300;
+          ctx.fillStyle = `hsla(${hue + i * 30}, 60%, 50%, 0.7)`;
+          ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
+        });
+
+        // Time display
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px monospace';
+        ctx.fillText(`Time: ${audio.currentTime.toFixed(2)}s`, 20, 30);
+      } else {
+        // Waiting screen
+        ctx.fillStyle = '#666';
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Click "Play Audio" to start', width / 2, height / 2);
+        ctx.textAlign = 'left';
+      }
+
+      animationId = requestAnimationFrame(render);
+    }
+
+    // Play button
+    playBtn.onclick = () => {
+      if (audio.paused) {
+        audio.play();
+        playBtn.textContent = 'Pause Audio';
+        streamBtn.disabled = false;
+      } else {
+        audio.pause();
+        playBtn.textContent = 'Play Audio';
+      }
+    };
+
+    // Stream button
+    streamBtn.onclick = async () => {
+      if (client && client.isStreaming) {
+        client.stop();
+        streamBtn.textContent = 'Start Stream';
+        statusEl.className = 'status';
+      } else {
+        client = new StreamClient(canvas, audio, {
+          onStatusChange: (status) => {
+            statusEl.textContent = `Status: ${status.message}`;
+            statusEl.className = `status ${status.state}`;
+          }
+        });
+
+        try {
+          await client.start(platformSelect.value);
+          streamBtn.textContent = 'Stop Stream';
+        } catch (err) {
+          console.error('Stream error:', err);
+          statusEl.textContent = `Error: ${err.message}`;
+          statusEl.className = 'status error';
+        }
+      }
+    };
+
+    // Start render loop
+    render();
+  </script>
+</body>
+</html>
